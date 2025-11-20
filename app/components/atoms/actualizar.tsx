@@ -1,205 +1,251 @@
 import {
-  Typography,
-  Flex,
-  Form,
-  Input,
-  Button,
-  Card,
-  Alert,
-  Select,
-  Divider,
-  message,
+    Typography,
+    Flex,
+    Form,
+    Input,
+    Button,
+    Card,
+    Alert,
+    Select,
+    Divider,
+    message,
 } from "antd";
-import React, { useState } from "react";
+import { useState } from "react";
+import { encomiendaService } from '~/services/encomiendaService';
 
 const { Title } = Typography;
 const { Option } = Select;
 
-// ➡️ Simulación de la respuesta de una API
-const simulatedTrackingData = {
-  ENV123456: {
-    status: "En tránsito",
-    details: "El paquete ha salido del centro de distribución.",
-  },
-  ENV789012: {
-    status: "Entregado",
-    details: "El paquete fue entregado satisfactoriamente.",
-  },
-};
-
 export default function Actualizar() {
-  const [trackingFound, setTrackingFound] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [searchForm] = Form.useForm();
-  const [updateForm] = Form.useForm();
+    const [trackingFound, setTrackingFound] = useState(false);
+    const [encomiendaData, setEncomiendaData] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchForm] = Form.useForm();
+    const [updateForm] = Form.useForm();
 
-  // Función que se ejecuta al enviar el formulario de búsqueda
-  const onSearchFinish = (values) => {
-    if (simulatedTrackingData[values.trackingCode]) {
-      setTrackingFound(true);
-      updateForm.resetFields();
-    } else {
-      setTrackingFound(false);
-      message.error(
-        `Código ${values.trackingCode} no encontrado. Intenta con ENV123456.`
-      );
-    }
-  };
+    // Función que se ejecuta al enviar el formulario de búsqueda
+    const onSearchFinish = async (values: any) => {
+        setSearchLoading(true);
+        try {
+            // Buscar la encomienda por código
+            const encomienda = await encomiendaService.buscarPorCodigo(values.trackingCode);
 
-  // Función que se ejecuta al enviar el formulario de actualización de estado
-  const onUpdateFinish = async (values) => {
-    setLoading(true);
+            setEncomiendaData(encomienda);
+            setTrackingFound(true);
+            updateForm.resetFields();
 
-    try {
-      // 💡 Esta sección solo se ejecuta si la validación de campos es correcta
-      
-      // Simulación de una llamada a la API
-      await new Promise((resolve) => setTimeout(resolve, 1500)); 
+            message.success(`Encomienda ${values.trackingCode} encontrada`);
 
-      // 1. Mostrar Feedback de Éxito con el mensaje solicitado ⬅️ MENSAJE AQUÍ
-      message.success(
-        `✅ El estado del paquete ${searchForm.getFieldValue(
-          "trackingCode"
-        )} se editó correctamente a: ${values.newStatus}`
-      );
+        } catch (error: any) {
+            setTrackingFound(false);
+            setEncomiendaData(null);
 
-      // 2. Ocultar la sección de actualización para evitar el reenvío
-      setTrackingFound(false);
+            const errorMessage = error.response?.data?.message ||
+                `Código ${values.trackingCode} no encontrado`;
+            message.error(errorMessage);
+        } finally {
+            setSearchLoading(false);
+        }
+    };
 
-      console.log("Actualización exitosa:", values);
-    } catch (error) {
-      // Mostrar Feedback de Error
-      message.error("Hubo un error al intentar actualizar el estado.");
-      console.error("Error al actualizar:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Función que se ejecuta al enviar el formulario de actualización de estado
+    const onUpdateFinish = async (values: any) => {
+        setLoading(true);
 
-  return (
-    <Card bodyStyle={{ padding: "32px" }}>
-      <Form
-        form={searchForm}
-        layout="vertical"
-        onFinish={onSearchFinish}
-      >
-        <Flex vertical align="center" style={{ width: "100%" }}>
-          <Title level={2} style={{ marginBottom: "8px" }}>
-            Rastrea tu envío en tiempo real
-          </Title>
-          <p style={{ marginBottom: "32px", textAlign: "center" }}>
-            Ingresa el código de seguimiento que recibiste para ver el estado de
-            tu encomienda
-          </p>
+        try {
+            const codigoSeguimiento = searchForm.getFieldValue("trackingCode");
 
-          <Flex gap={12} style={{ width: "100%", maxWidth: "450px" }}>
-            {/* Input y su Label */}
-            <Form.Item
-              name="trackingCode"
-              label="Código de seguimiento"
-              style={{ flex: 1, marginBottom: 0 }}
-              rules={[
-                {
-                  required: true,
-                  message: "Por favor, ingresa el código de seguimiento",
-                },
-              ]}
+            // Mapear los valores del formulario al DTO del backend
+            const payload = {
+                nuevoEstado: values.newStatus,
+                ubicacion: values.ubicacion || null,
+                comentarios: values.updateDetails || null,
+            };
+
+            console.log('Actualizando encomienda:', codigoSeguimiento, payload);
+
+            // Llamar al servicio para actualizar el estado
+            const encomiendaActualizada = await encomiendaService.actualizarEstado(
+                codigoSeguimiento,
+                payload
+            );
+
+            // Mostrar mensaje de éxito
+            message.success(
+                `✅ El estado del paquete ${codigoSeguimiento} se editó correctamente a: ${values.newStatus}`
+            );
+
+            // Actualizar los datos mostrados
+            setEncomiendaData(encomiendaActualizada);
+
+            // Resetear el formulario de actualización
+            updateForm.resetFields();
+
+            // Opcional: Ocultar la sección de actualización
+            // setTrackingFound(false);
+
+        } catch (error: any) {
+            console.error("Error al actualizar:", error);
+
+            const errorMessage = error.response?.data?.message ||
+                "Hubo un error al intentar actualizar el estado.";
+            message.error(errorMessage);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Card bodyStyle={{ padding: "32px" }}>
+            <Form
+                form={searchForm}
+                layout="vertical"
+                onFinish={onSearchFinish}
             >
-              <Input
-                placeholder="Ingresa tu código de seguimiento (Ej: ENV123456)"
-                size="large"
-              />
-            </Form.Item>
+                <Flex vertical align="center" style={{ width: "100%" }}>
+                    <Title level={2} style={{ marginBottom: "8px" }}>
+                        Rastrea tu envío en tiempo real
+                    </Title>
+                    <p style={{ marginBottom: "32px", textAlign: "center" }}>
+                        Ingresa el código de seguimiento que recibiste para ver el estado de
+                        tu encomienda
+                    </p>
 
-            {/* Botón de Búsqueda */}
-            <Form.Item
-              style={{ marginBottom: 0, marginTop: "30px" }}
-            >
-              <Button type="primary" size="large" htmlType="submit">
-                Buscar
-              </Button>
-            </Form.Item>
-          </Flex>
-        </Flex>
-      </Form>
+                    <Flex gap={12} style={{ width: "100%", maxWidth: "450px" }}>
+                        {/* Input y su Label */}
+                        <Form.Item
+                            name="trackingCode"
+                            label="Código de seguimiento"
+                            style={{ flex: 1, marginBottom: 0 }}
+                            rules={[
+                                {
+                                    required: true,
+                                    message: "Por favor, ingresa el código de seguimiento",
+                                },
+                            ]}
+                        >
+                            <Input
+                                placeholder="Ingresa tu código (Ej: ABC-123456789)"
+                                size="large"
+                            />
+                        </Form.Item>
 
-      {/* ----------------------------------------------------- */}
-      {trackingFound && <Divider />}
-      {/* ----------------------------------------------------- */}
+                        {/* Botón de Búsqueda */}
+                        <Form.Item
+                            style={{ marginBottom: 0, marginTop: "30px" }}
+                        >
+                            <Button
+                                type="primary"
+                                size="large"
+                                htmlType="submit"
+                                loading={searchLoading}
+                            >
+                                Buscar
+                            </Button>
+                        </Form.Item>
+                    </Flex>
+                </Flex>
+            </Form>
 
-      {/* 🔍 APARTADO DE ACTUALIZACIÓN VISIBLE SÓLO SI SE ENCUENTRA EL CÓDIGO */}
-      {trackingFound && (
-        <div style={{ marginTop: "32px" }}>
-          <Title level={3} style={{ marginBottom: "24px", textAlign: "center" }}>
-            Actualizar Estado 📝
-          </Title>
+            {/* ----------------------------------------------------- */}
+            {trackingFound && <Divider />}
+            {/* ----------------------------------------------------- */}
 
-          <Alert
-            message={`Código ${searchForm.getFieldValue(
-              "trackingCode"
-            )} encontrado. Por favor, actualiza el estado.`}
-            type="info"
-            showIcon
-            style={{ marginBottom: "24px" }}
-          />
+            {/* 📦 INFORMACIÓN DE LA ENCOMIENDA ENCONTRADA */}
+            {trackingFound && encomiendaData && (
+                <div style={{ marginTop: "24px", marginBottom: "24px" }}>
+                    <Alert
+                        message="Encomienda Encontrada"
+                        description={
+                            <div>
+                                <p><strong>Código:</strong> {encomiendaData.codigoSeguimiento}</p>
+                                <p><strong>Estado Actual:</strong> {encomiendaData.estado}</p>
+                                <p><strong>Origen:</strong> {encomiendaData.origenCiudad}</p>
+                                <p><strong>Destino:</strong> {encomiendaData.destinoCiudad}</p>
+                                <p><strong>Ubicación Actual:</strong> {encomiendaData.ubicacionActual}</p>
+                                <p><strong>Remitente:</strong> {encomiendaData.remitenteNombre}</p>
+                                <p><strong>Destinatario:</strong> {encomiendaData.destinatarioNombre}</p>
+                            </div>
+                        }
+                        type="success"
+                        showIcon
+                    />
+                </div>
+            )}
 
-          {/* Formulario de Actualización de Estado */}
-          <Form
-            form={updateForm}
-            layout="vertical"
-            onFinish={onUpdateFinish}
-            style={{ maxWidth: "600px", margin: "0 auto" }}
-          >
-            <Form.Item
-              name="newStatus"
-              label="Nuevo Estado"
-              rules={[
-                {
-                  required: true,
-                  message: "Selecciona el nuevo estado del envío",
-                },
-              ]}
-            >
-              <Select placeholder="Selecciona el estado">
-                <Option value="En tránsito">En tránsito</Option>
-                <Option value="En almacén local">En almacén local</Option>
-                <Option value="En reparto">En reparto</Option>
-                <Option value="Entregado">Entregado</Option>
-                <Option value="Excepción">Excepción</Option>
-              </Select>
-            </Form.Item>
+            {/* 🔍 APARTADO DE ACTUALIZACIÓN VISIBLE SÓLO SI SE ENCUENTRA EL CÓDIGO */}
+            {trackingFound && (
+                <div style={{ marginTop: "32px" }}>
+                    <Title level={3} style={{ marginBottom: "24px", textAlign: "center" }}>
+                        Actualizar Estado 📝
+                    </Title>
 
-            <Form.Item
-              name="updateDetails"
-              label="Detalles de la Actualización"
-              rules={[
-                {
-                  required: true,
-                  message: "Ingresa detalles relevantes para esta actualización",
-                },
-              ]}
-            >
-              <Input.TextArea
-                rows={4}
-                placeholder="Ej: Paquete cargado en vehículo de reparto, Salió de la aduana, etc."
-              />
-            </Form.Item>
+                    {/* Formulario de Actualización de Estado */}
+                    <Form
+                        form={updateForm}
+                        layout="vertical"
+                        onFinish={onUpdateFinish}
+                        style={{ maxWidth: "600px", margin: "0 auto" }}
+                    >
+                        <Form.Item
+                            name="newStatus"
+                            label="Nuevo Estado"
+                            rules={[
+                                {
+                                    required: true,
+                                    message: "Selecciona el nuevo estado del envío",
+                                },
+                            ]}
+                        >
+                            <Select placeholder="Selecciona el estado">
+                                <Option value="EN_RECEPCION">En Recepción</Option>
+                                <Option value="EN_DESPACHO">En Despacho</Option>
+                                <Option value="EN_TRANSITO">En Tránsito</Option>
+                                <Option value="ENTREGADO">Entregado</Option>
+                            </Select>
+                        </Form.Item>
 
-            <Form.Item>
-              <Button
-                type="primary"
-                htmlType="submit"
-                block
-                size="large"
-                loading={loading}
-                disabled={loading}
-              >
-                {loading ? "Actualizando..." : "Actualizar"} 
-              </Button>
-            </Form.Item>
-          </Form>
-        </div>
-      )}
-    </Card>
-  );
+                        <Form.Item
+                            name="ubicacion"
+                            label="Ubicación Actual (Opcional)"
+                        >
+                            <Input
+                                placeholder="Ej: Centro de Distribución Santiago"
+                            />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="updateDetails"
+                            label="Comentarios"
+                            rules={[
+                                {
+                                    required: true,
+                                    message: "Ingresa comentarios sobre la actualización",
+                                },
+                            ]}
+                        >
+                            <Input.TextArea
+                                rows={4}
+                                placeholder="Ej: Paquete cargado en vehículo de reparto, Salió de la aduana, etc."
+                            />
+                        </Form.Item>
+
+                        <Form.Item>
+                            <Button
+                                type="primary"
+                                htmlType="submit"
+                                block
+                                size="large"
+                                loading={loading}
+                                disabled={loading}
+                            >
+                                {loading ? "Actualizando..." : "Actualizar Estado"}
+                            </Button>
+                        </Form.Item>
+                    </Form>
+                </div>
+            )}
+        </Card>
+    );
 }

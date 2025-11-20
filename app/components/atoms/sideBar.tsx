@@ -1,7 +1,7 @@
 import React from "react";
 import { Menu, Avatar } from "antd";
 import { UserOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 export default function NavBarLinks() {
    const navigate = useNavigate();
@@ -21,7 +21,7 @@ export default function NavBarLinks() {
 
       },
       { key: "/crearEnvio", label: "Crear Envio", onClick: () => navigate("/crearEnvio") },
-      { key: "/misEnvios", label: "Mis envios", onClick: () => navigate("/misEnvios") },
+      { key: "/misEnvios", label: "Mis envios", onClick: () => navigate("/") },
       { key: "/configuracion", label: "Configuracion", onClick: () => navigate("/configuracion") },
    ];
 
